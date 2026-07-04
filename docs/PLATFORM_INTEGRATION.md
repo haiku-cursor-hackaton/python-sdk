@@ -1,14 +1,17 @@
-# Platform Integration Contract — Genko SDK ↔ Genko MCP Gateway
+# Platform Integration Contract — Genko SDK ↔ Genko Platform
 
-**Audience:** the teammate(s) building the multi-tenant **MCP Gateway** and the
-platform **infra** (Supabase, wallet, dashboard) described in the *"MCP Gateway
-para comercios UCP"* PRD.
+**Audience:** the team building the **Genko platform backend** (MCP gateway,
+wallet, dashboard) and anyone wiring a merchant store (e.g. Lithe) into it.
+
+**Platform repo:** [`haiku-cursor-hackaton/backend`](https://github.com/haiku-cursor-hackaton/backend)
+— FastAPI MCP gateway at `POST /mcp`, merchant registration, simulated wallet,
+and payment-authorization callbacks the SDK calls on checkout completion.
 
 **Purpose:** this is the source-of-truth handoff. It tells you exactly what a
 merchant running the Genko SDK exposes, the final REST endpoints, the
-MCP tool mapping, request/response shapes, the payment-instrument contract, and
-the honest list of what is / isn't enforced yet. You can start building the
-gateway against this without reading the SDK source.
+MCP tool mapping (on the **platform**, not the store), request/response shapes,
+the payment-instrument contract, and the honest list of what is / isn't enforced
+yet. You can start building the gateway against this without reading the SDK source.
 
 - UCP target version: **`2026-04-08`**
 - MCP target version: **`2025-11-25`**
@@ -20,20 +23,36 @@ gateway against this without reading the SDK source.
 ## 1. Where the gateway sits
 
 ```
-Client harness ──MCP──▶ Genko MCP Gateway ──UCP REST──▶ Genko SDK ──▶ store backend (e.g. Lithe)
+Agent (Codex, etc.)
+    │  MCP + gk_mcp_* user key
+    ▼
+Genko platform backend  —  POST /mcp  (9 shopping tools)
+    │  UCP REST + optional Authorization: Bearer gk_vendor_*
+    ▼
+Merchant store (Genko SDK)  —  POST/GET /ucp/v1/*  (REST only in production)
+    │  verify + accredit on complete
+    │  Authorization: Bearer gk_sdk_*
+    ▼
+Genko platform backend  —  GET/POST /v1/payment-authorizations/*
+    │  simulated wallet (reserve → capture / release)
+    ▼
+Supabase
 ```
 
-- **Our scope (this repo):** the merchant tier — the Genko SDK and its
-  Lithe integration. Each store exposes a **standard UCP REST surface** plus its
-  own MCP endpoint.
-- **Your scope (PRD):** the gateway is the single public multi-tenant MCP server.
-  It authenticates the user, resolves `merchant_url` → a registered merchant,
-  reads that merchant's `/.well-known/ucp`, and **translates MCP calls into the
-  merchant's UCP REST calls**. It owns the simulated wallet/settlement.
+- **Merchant tier (Genko SDK + Lithe):** each store exposes **UCP REST only**
+  (`enable_mcp=False` by default). Discovery (`/.well-known/ucp`) advertises a
+  single `transport: "rest"` service. Optional inbound gate:
+  `UCPMerchant(api_keys=...)` / Lithe `UCP_GATEWAY_API_KEY`.
+- **Platform tier ([`backend`](https://github.com/haiku-cursor-hackaton/backend)):**
+  the **only** public MCP surface for end users. It authenticates the user
+  (`gk_mcp_*`), resolves `merchant_url` → a registered merchant, reads
+  `/.well-known/ucp`, and **translates MCP tool calls into the merchant's UCP
+  REST calls**. It owns the simulated wallet/settlement and issues SDK keys
+  (`gk_sdk_*`) for merchant→platform payment callbacks.
 
-**Key alignment point:** you should drive merchants over their **REST** surface
-(the table in §4). The SDK also ships a per-merchant MCP endpoint, but that's for
-direct/standalone agents — the gateway does **not** need to call merchant MCP.
+**Key alignment point:** the gateway drives merchants over their **REST** surface
+(the table in §4). Per-merchant MCP (`/ucp/mcp`) is **opt-in** in the SDK for
+local demos only — production Genko vendors do not mount it.
 
 ---
 
@@ -42,7 +61,7 @@ direct/standalone agents — the gateway does **not** need to call merchant MCP.
 Every merchant serves this profile. Resolve it, cache it (PRD's
 `merchant_connections`), and use `services[...].endpoint` as the REST base URL.
 
-Exact shape emitted by the SDK:
+Exact shape emitted by the SDK when `enable_mcp=False` (production default):
 
 ```json
 {
@@ -56,13 +75,6 @@ Exact shape emitted by the SDK:
           "endpoint": "https://store.example.com/ucp/v1",
           "spec": "https://ucp.dev/specification/overview",
           "schema": "https://ucp.dev/2026-04-08/services/shopping/rest.openapi.json"
-        },
-        {
-          "version": "2026-04-08",
-          "transport": "mcp",
-          "endpoint": "https://store.example.com/ucp/mcp",
-          "spec": "https://ucp.dev/specification/overview",
-          "schema": "https://ucp.dev/2026-04-08/services/shopping/mcp.openrpc.json"
         }
       ]
     },
@@ -86,6 +98,9 @@ Exact shape emitted by the SDK:
   }
 }
 ```
+
+When `enable_mcp=True` (local demos only), a second service entry with
+`transport: "mcp"` and `endpoint: "{base_url}/ucp/mcp"` is also advertised.
 
 **Gateway MUST:**
 1. Read the REST `endpoint` — treat it as `ucp_base_url`. All REST paths in §4
@@ -114,6 +129,35 @@ do per-request; we only note the contract so both sides agree:
   and **never** issues an HTTP request to an unregistered/arbitrary host
   (PRD §6). Our SDK does not participate in this; it just answers on its own
   base URL.
+
+### Registering a merchant (Genko platform)
+
+Use the platform backend ([`backend`](https://github.com/haiku-cursor-hackaton/backend)):
+
+```http
+POST /v1/merchants/register
+Authorization: Bearer <supabase-user-jwt>
+Content-Type: application/json
+
+{ "root_url": "https://lithe-production.up.railway.app" }
+```
+
+The platform `GET`s `/.well-known/ucp`, extracts the REST `endpoint`, stores the
+domain mapping, and returns `sdk_api_key` (`gk_sdk_*`). Set on the store:
+
+| Store env var | Value |
+|---|---|
+| `UCP_PLATFORM_URL` | Genko platform base URL |
+| `UCP_PLATFORM_API_KEY` | `sdk_api_key` from registration |
+| `UCP_GATEWAY_API_KEY` | Vendor inbound key the platform sends as `Authorization: Bearer` |
+
+End users connect via `POST /v1/connect/client` → `mcp_url` + `mcp_api_key`
+(`gk_mcp_*`) for Codex or `scripts/genko_mcp_stdio.py`.
+
+> **Known gap:** the platform's `UcpRestClient` does not yet attach the vendor
+> inbound key on outbound REST calls. When a store sets `UCP_GATEWAY_API_KEY`, the
+> platform must store that key at registration and send
+> `Authorization: Bearer <vendor_key>` on every merchant REST request.
 
 ---
 

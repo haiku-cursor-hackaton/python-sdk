@@ -10,13 +10,15 @@ and your store instantly gets:
   product) — the advertised way agents discover your products
 - REST checkout endpoints under `/ucp/v1/*` (the five UCP checkout operations)
 - an optional **Order** capability (`GET /ucp/v1/orders/{id}`)
-- an MCP (JSON-RPC) endpoint at `/ucp/mcp` so AI agents (Claude, Gemini, etc.)
-  can shop your store as tools
+- an optional MCP (JSON-RPC) endpoint at `/ucp/mcp` when `enable_mcp=True`
+  (local demos only; **production Genko vendors are REST-only**)
 
 Targets UCP spec version `2026-04-08` (capabilities
 `dev.ucp.shopping.catalog.search`, `dev.ucp.shopping.catalog.lookup`,
-`dev.ucp.shopping.checkout`, and the optional `dev.ucp.shopping.order`; REST +
-MCP transports). All amounts are integers in the currency's minor unit (cents).
+`dev.ucp.shopping.checkout`, and the optional `dev.ucp.shopping.order`; REST
+transport on stores; MCP lives on the
+[Genko platform backend](https://github.com/haiku-cursor-hackaton/backend)).
+All amounts are integers in the currency's minor unit (cents).
 
 ## Install
 
@@ -57,11 +59,15 @@ ucp = UCPMerchant(
 
 app = FastAPI()
 app.include_router(ucp.rest_router)         # /ucp/v1/*
-app.include_router(ucp.mcp_router)          # /ucp/mcp
 app.include_router(ucp.well_known_router)   # /.well-known/ucp
+# Optional for local demos only:
+# ucp = UCPMerchant(..., enable_mcp=True)
+# app.include_router(ucp.mcp_router)        # /ucp/mcp
 ```
 
-That's it — your store is now UCP-compliant.
+That's it — your store is now UCP-compliant over REST. Agents reach you through
+the [Genko platform MCP gateway](https://github.com/haiku-cursor-hackaton/backend),
+not by calling your store's MCP directly.
 
 ## The adapter contract
 
@@ -110,14 +116,24 @@ the SDK stays a pure offline handler. See
 
 ## Try it end to end
 
+**Against a local demo store (direct MCP, opt-in):**
+
 ```bash
 pip install -e ".[examples]"
-uvicorn examples.demo_store:app --port 8100      # terminal 1
+uvicorn examples.demo_store:app --port 8100      # terminal 1 — enable_mcp=True
 python examples/agent_client.py                  # terminal 2 — scripted agent
 ```
 
-The agent discovers the profile, lists tools, searches products, creates a
-checkout, adds buyer details, and completes the order — all over MCP.
+**Against the Genko platform (production model):**
+
+1. Run the [platform backend](https://github.com/haiku-cursor-hackaton/backend)
+   and register a merchant (`POST /v1/merchants/register`).
+2. Point the store at the platform (`UCP_PLATFORM_URL` + `UCP_PLATFORM_API_KEY`).
+3. Connect a user (`POST /v1/connect/client`) and call `POST /mcp` with the
+   returned `mcp_api_key`.
+
+See [`docs/PLATFORM_INTEGRATION.md`](docs/PLATFORM_INTEGRATION.md) for the full
+wiring table and REST surface.
 
 ## Tests
 
@@ -133,8 +149,9 @@ python -m unittest discover tests -v
 | REST (catalog) | `POST /ucp/v1/catalog/{search,lookup,product}` | Official Catalog capability; all business outcomes are HTTP 200 |
 | REST (checkout) | `POST/GET/PUT /ucp/v1/checkout-sessions[/{id}][/complete|/cancel]` | Standard HTTP verbs + JSON |
 | REST (order) | `GET /ucp/v1/orders/{id}` | Only when `enable_order_capability=True` |
-| MCP | `POST /ucp/mcp` | JSON-RPC `initialize`, `tools/list`, `tools/call`; dual `structuredContent` + `content[]` output |
-| Discovery | `GET /.well-known/ucp` | Business profile with services, capabilities, payment handlers |
+| MCP (store) | `POST /ucp/mcp` | Only when `enable_mcp=True` (demos); not used in production |
+| MCP (platform) | `POST /mcp` on [Genko backend](https://github.com/haiku-cursor-hackaton/backend) | Where agents connect in production |
+| Discovery | `GET /.well-known/ucp` | Business profile; REST-only by default |
 
 MCP tools: `search_products`, `lookup_products`, `get_product`,
 `create_checkout`, `get_checkout`, `update_checkout`, `complete_checkout`,
@@ -149,11 +166,13 @@ MCP tools: `search_products`, `lookup_products`, `get_product`,
 
 ## Building a platform / gateway on top of this?
 
-If you're building the multi-tenant **MCP Gateway / infra** that fans out to
-many merchants, read the handoff contract:
-**[`docs/PLATFORM_INTEGRATION.md`](docs/PLATFORM_INTEGRATION.md)**. It documents
-the final REST surface, the MCP tool ↔ REST mapping, request/response shapes, the
-simulated-payment instrument contract, and exactly what is / isn't enforced yet.
+The Genko platform backend lives at
+[`haiku-cursor-hackaton/backend`](https://github.com/haiku-cursor-hackaton/backend).
+It exposes the multi-tenant MCP server, wallet, and merchant registration. Read
+the handoff contract:
+**[`docs/PLATFORM_INTEGRATION.md`](docs/PLATFORM_INTEGRATION.md)** — final REST
+surface, MCP tool ↔ REST mapping, payment instrument contract, env wiring, and
+what is / isn't enforced yet.
 
 ### Catalog capability
 
