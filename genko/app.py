@@ -1,12 +1,15 @@
 """The one-class entry point: :class:`UCPMerchant`.
 
-Wire an existing store into UCP in three lines::
+Wire an existing store into UCP in two lines (REST-only; the default for vendors)::
 
     ucp = UCPMerchant(store_name="My Store", base_url="https://mystore.com",
                       adapter=MyAdapter())
     app.include_router(ucp.rest_router)
-    app.include_router(ucp.mcp_router)
     app.include_router(ucp.well_known_router)
+
+Set ``enable_mcp=True`` and mount ``ucp.mcp_router`` only when the store itself
+should expose a local MCP transport (e.g. demos). Production Genko vendors are
+REST-only; the platform MCP gateway calls their REST endpoints.
 """
 
 from __future__ import annotations
@@ -50,6 +53,7 @@ class UCPMerchant:
         payment_handlers: dict | None = None,
         session_ttl_hours: int = 6,
         enable_order_capability: bool = False,
+        enable_mcp: bool = False,
         platform_url: str | None = None,
         platform_api_key: str | None = None,
         platform_client: PlatformClient | None = None,
@@ -61,9 +65,13 @@ class UCPMerchant:
         self.rest_prefix = rest_prefix
         self.mcp_path = mcp_path
         self.enable_order_capability = enable_order_capability
+        self.enable_mcp = enable_mcp
         self._payment_handlers = payment_handlers or default_payment_handlers(self.base_url, version)
 
-        # Optional gateway API-key gate for the REST + MCP operation routers.
+        # Optional gateway API-key gate for the REST operation router (and MCP when
+        # enabled). When set, only callers presenting a matching Bearer token (e.g.
+        # the Genko gateway holding this vendor's key) can transact; discovery stays
+        # open. Empty => surface is open (rely on the host app for any limits).
         # When set, only callers presenting a matching Bearer token (e.g. the
         # Genko gateway holding this vendor's key) can transact; discovery stays
         # open. Empty => surface is open (rely on the host app for any limits).
@@ -119,6 +127,11 @@ class UCPMerchant:
 
     @property
     def mcp_router(self) -> APIRouter:
+        if not self.enable_mcp:
+            raise RuntimeError(
+                "MCP is disabled for this merchant (enable_mcp=False). "
+                "Mount rest_router only, or pass enable_mcp=True for local demos."
+            )
         return build_mcp_router(
             self.engine,
             path=self.mcp_path,
@@ -145,4 +158,5 @@ class UCPMerchant:
             version=self.version,
             payment_handlers=self._payment_handlers,
             enable_order=self.enable_order_capability,
+            enable_mcp=self.enable_mcp,
         )
