@@ -27,7 +27,7 @@ def default_payment_handlers(base_url: str, version: str) -> dict:
     """
 
     return {
-        "com.ucp-merchant.offline_payment": [
+        "com.genko.offline_payment": [
             {
                 "id": "offline",
                 "version": version,

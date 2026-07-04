@@ -1,6 +1,6 @@
 """Mapping helpers for the UCP shopping/catalog capability.
 
-The SDK models a purchasable SKU as a single :class:`~ucp_merchant.models.Product`
+The SDK models a purchasable SKU as a single :class:`~genko.models.Product`
 (variants such as size/color are already encoded into ``Product.id``). The UCP
 Catalog capability, however, expresses products as a richer document with a
 ``price_range``, ``media`` and one or more ``variants``. Because each SDK

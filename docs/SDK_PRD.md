@@ -1,4 +1,4 @@
-# PRD — `ucp-merchant` SDK
+# PRD — Genko SDK (`genko`)
 
 **Version:** MVP Hackathon
 **UCP target:** `2026-04-08`
@@ -18,7 +18,7 @@ error semantics, REST + MCP transports, and the catalog/order capabilities — s
 merchant only writes store-specific logic (products, pricing, order creation).
 
 ```
-AI agent / harness ──▶ (MCP Gateway) ──UCP REST──▶ ucp-merchant SDK ──adapter──▶ store backend
+AI agent / harness ──▶ (Genko MCP Gateway) ──UCP REST──▶ Genko SDK ──adapter──▶ store backend
 ```
 
 The SDK sits at the **merchant tier**. It does not implement a gateway, wallet,
@@ -73,15 +73,15 @@ exposes one merchant over standard UCP.
 
 | Module | Responsibility |
 | --- | --- |
-| `ucp_merchant/app.py` | `UCPMerchant` — the one-class entry point; builds the 3 routers + profile |
-| `ucp_merchant/adapter.py` | `MerchantAdapter` ABC — the merchant integration contract |
-| `ucp_merchant/engine.py` | `CheckoutEngine` — transport-agnostic core: sessions, lifecycle, catalog/order ops, envelopes |
-| `ucp_merchant/rest.py` | `build_rest_router` — RESTful HTTP binding |
-| `ucp_merchant/mcp.py` | `build_mcp_router` — JSON-RPC (MCP) binding |
-| `ucp_merchant/profile.py` | discovery profile + capability + default payment handler builders |
-| `ucp_merchant/catalog.py` | `product_to_catalog` — SDK `Product` → UCP Catalog Product document |
-| `ucp_merchant/platform.py` | `PlatformClient` + `HttpPlatformClient` — API-key callback to verify/accredit simulated payments |
-| `ucp_merchant/models.py` | Pydantic models + capability/version constants |
+| `genko/app.py` | `UCPMerchant` — the one-class entry point; builds the 3 routers + profile |
+| `genko/adapter.py` | `MerchantAdapter` ABC — the merchant integration contract |
+| `genko/engine.py` | `CheckoutEngine` — transport-agnostic core: sessions, lifecycle, catalog/order ops, envelopes |
+| `genko/rest.py` | `build_rest_router` — RESTful HTTP binding |
+| `genko/mcp.py` | `build_mcp_router` — JSON-RPC (MCP) binding |
+| `genko/profile.py` | discovery profile + capability + default payment handler builders |
+| `genko/catalog.py` | `product_to_catalog` — SDK `Product` → UCP Catalog Product document |
+| `genko/platform.py` | `PlatformClient` + `HttpPlatformClient` — API-key callback to verify/accredit simulated payments |
+| `genko/models.py` | Pydantic models + capability/version constants |
 
 Request flow: `HTTP/JSON-RPC → router → CheckoutEngine method → MerchantAdapter callbacks → UCP envelope out`.
 
@@ -344,7 +344,7 @@ Required buyer fields are configurable via `require_buyer_fields`
     /* + "dev.ucp.shopping.order" when enable_order_capability=True */
   },
   "payment_handlers": {
-    "com.ucp-merchant.offline_payment": [ { "id": "offline", "version": "2026-04-08",
+    "com.genko.offline_payment": [ { "id": "offline", "version": "2026-04-08",
       "spec": "{base}/ucp/payment/offline", "schema": "{base}/ucp/payment/offline.json",
       "available_instruments": [{"type":"offline"}],
       "config": {"instructions": "Provide a payment reference; order is created pending manual payment review."} } ]
@@ -391,7 +391,7 @@ Tools (names map to UCP operations):
 ## 11. Payments
 
 Ships a pluggable **offline/manual** handler
-(`com.ucp-merchant.offline_payment`, instrument `id: "offline"`, `type: "offline"`).
+(`com.genko.offline_payment`, instrument `id: "offline"`, `type: "offline"`).
 
 - The platform/gateway sends a payment instrument at `complete` whose
   `credential.reference` (fallback `credential.token`) carries an opaque payment
@@ -460,7 +460,7 @@ reference), `upstream_unreachable` / `upstream_response_invalid` /
 Known gaps / roadmap: header-level inbound idempotency store, `UCP-Agent`
 validation, per-merchant inbound auth middleware, persistent session store,
 fulfillment/delivery events in the Order snapshot, self-registration helper
-(`python -m ucp_merchant.register`).
+(`python -m genko.register`).
 
 ---
 

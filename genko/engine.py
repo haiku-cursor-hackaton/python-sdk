@@ -279,6 +279,21 @@ class CheckoutEngine:
     # Catalog operations
     # ------------------------------------------------------------------ #
     @staticmethod
+    def _matches_query(product, tokens: list[str]) -> bool:
+        """Match a search query against title, id, description and attributes.
+
+        All whitespace-separated tokens must appear (AND semantics) somewhere in
+        the product's searchable text. URL-like attribute values are skipped so
+        storefront links don't create spurious matches.
+        """
+        parts = [product.title, product.id, product.description or ""]
+        for value in (product.attributes or {}).values():
+            if isinstance(value, str) and not value.startswith(("http://", "https://", "/")):
+                parts.append(value)
+        haystack = " ".join(parts).lower()
+        return all(token in haystack for token in tokens)
+
+    @staticmethod
     def _apply_catalog_filters(products, filters: dict | None):
         filters = filters or {}
 
@@ -307,14 +322,12 @@ class CheckoutEngine:
         filters: dict | None = None,
         pagination: dict | None = None,
     ) -> dict:
-        """Catalog Search: case-insensitive title/id match + filters + paging."""
+        """Catalog Search: case-insensitive keyword match + filters + paging."""
         products = self.adapter.get_products()
 
         if query:
-            needle = query.strip().lower()
-            products = [
-                p for p in products if needle in p.title.lower() or needle in p.id.lower()
-            ]
+            tokens = [t for t in query.strip().lower().split() if t]
+            products = [p for p in products if self._matches_query(p, tokens)]
 
         products = self._apply_catalog_filters(products, filters)
 
@@ -555,7 +568,7 @@ class CheckoutEngine:
         # 3. Accredit / settle the payment so the platform credits the merchant.
         if self.platform_client is not None and payment_reference:
             try:
-                self.platform_client.accredit(
+                accredit_result = self.platform_client.accredit(
                     payment_reference,
                     order_id=confirmation.id,
                     amount_minor=total_minor or 0,
@@ -572,6 +585,30 @@ class CheckoutEngine:
                         type="warning",
                         code="reconciliation_required",
                         content=f"Order placed but payment accreditation failed: {error}",
+                        severity="requires_buyer_review",
+                    )
+                ]
+                return self._to_checkout(session)
+
+            # 4. Settlement confirmed: let the store reconcile (e.g. mark paid).
+            try:
+                updated = self.adapter.on_payment_accredited(
+                    order_id=confirmation.id,
+                    payment_reference=payment_reference,
+                    amount_minor=total_minor or 0,
+                    currency=self.currency,
+                    result=accredit_result if isinstance(accredit_result, dict) else None,
+                )
+                if updated is not None:
+                    confirmation = updated
+            except Exception as error:  # noqa: BLE001 - never lose a placed+settled order
+                session.order = confirmation
+                session.status = "completed"
+                session.messages = [
+                    Message(
+                        type="warning",
+                        code="order_update_deferred",
+                        content=f"Payment settled but local order update failed: {error}",
                         severity="requires_buyer_review",
                     )
                 ]

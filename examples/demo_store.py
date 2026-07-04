@@ -10,9 +10,11 @@ Then discover it at http://127.0.0.1:8100/.well-known/ucp
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 
-from ucp_merchant import (
+from genko import (
     Buyer,
     LineItem,
     Link,
@@ -23,10 +25,32 @@ from ucp_merchant import (
     UCPMerchant,
 )
 
+_TEE_KEYWORDS = "shirt t-shirt tshirt tee apparel top clothing"
+
 CATALOG = [
-    Product(id="tee-black-m", title="Black Tee (M)", price=1599, image_url="https://picsum.photos/seed/tee/400"),
-    Product(id="tee-white-l", title="White Tee (L)", price=1599),
-    Product(id="hoodie-navy-l", title="Navy Hoodie (L)", price=3999, available=False),
+    Product(
+        id="tee-black-m",
+        title="Black Tee (M)",
+        price=1599,
+        image_url="https://picsum.photos/seed/tee/400",
+        description="Classic black t-shirt, size M.",
+        attributes={"keywords": _TEE_KEYWORDS, "color": "black", "size": "M"},
+    ),
+    Product(
+        id="tee-white-l",
+        title="White Tee (L)",
+        price=1599,
+        description="Classic white t-shirt, size L.",
+        attributes={"keywords": _TEE_KEYWORDS, "color": "white", "size": "L"},
+    ),
+    Product(
+        id="hoodie-navy-l",
+        title="Navy Hoodie (L)",
+        price=3999,
+        available=False,
+        description="Navy hoodie sweatshirt, size L.",
+        attributes={"keywords": "hoodie sweatshirt shirt apparel top clothing", "color": "navy", "size": "L"},
+    ),
 ]
 
 
@@ -52,6 +76,10 @@ class DemoAdapter(MerchantAdapter):
             id=order_id,
             label=order_id,
             permalink_url=f"https://demo-store.example.com/orders/{order_id}",
+            status="created",
+            payment_status="pending",
+            currency="USD",
+            totals=totals,
         )
         self._orders[order_id] = confirmation
         return confirmation
@@ -59,13 +87,32 @@ class DemoAdapter(MerchantAdapter):
     def get_order(self, order_id: str) -> OrderConfirmation | None:
         return self._orders.get(order_id)
 
+    def on_payment_accredited(
+        self, *, order_id: str, payment_reference: str, amount_minor: int, currency: str, result=None
+    ) -> OrderConfirmation | None:
+        confirmation = self._orders.get(order_id)
+        if confirmation is None:
+            return None
+        confirmation.payment_status = "paid"
+        confirmation.status = "paid"
+        return confirmation
 
+
+def _flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Optional platform accreditation for local testing against ucp-platform-mock:
+# set UCP_PLATFORM_URL + UCP_PLATFORM_API_KEY to make the SDK verify + accredit.
 ucp = UCPMerchant(
     store_name="Demo Store",
     base_url="http://127.0.0.1:8100",
     adapter=DemoAdapter(),
     currency="USD",
     require_buyer_fields=("email",),
+    enable_order_capability=_flag("UCP_DEMO_ORDER_CAPABILITY"),
+    platform_url=os.getenv("UCP_PLATFORM_URL") or None,
+    platform_api_key=os.getenv("UCP_PLATFORM_API_KEY") or None,
     links=[
         Link(type="privacy_policy", url="https://demo-store.example.com/privacy"),
         Link(type="terms_of_service", url="https://demo-store.example.com/terms"),

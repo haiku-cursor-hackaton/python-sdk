@@ -1,8 +1,8 @@
-# ucp-merchant
+# Genko SDK
 
-Drop-in [Universal Commerce Protocol (UCP)](https://ucp.dev) merchant server for
-any Python / FastAPI ecommerce. Implement **one small adapter class** and your
-store instantly gets:
+Genko is a drop-in [Universal Commerce Protocol (UCP)](https://ucp.dev) merchant
+server for any Python / FastAPI ecommerce. Implement **one small adapter class**
+and your store instantly gets:
 
 - `GET /.well-known/ucp` — the discovery profile so platforms and AI agents can
   find and negotiate with you
@@ -33,7 +33,7 @@ to turn a completed checkout into a real order:
 
 ```python
 from fastapi import FastAPI
-from ucp_merchant import (
+from genko import (
     UCPMerchant, MerchantAdapter, Product, OrderConfirmation,
 )
 
@@ -65,7 +65,7 @@ That's it — your store is now UCP-compliant.
 
 ## The adapter contract
 
-`MerchantAdapter` (see [`ucp_merchant/adapter.py`](ucp_merchant/adapter.py)):
+`MerchantAdapter` (see [`genko/adapter.py`](genko/adapter.py)):
 
 | Method | Required | Purpose |
 | --- | --- | --- |
@@ -95,7 +95,7 @@ Unknown or out-of-stock items produce standard UCP error messages
 
 ## Payments
 
-Ships with a pluggable **offline payment handler** (`com.ucp-merchant.offline_payment`):
+Ships with a pluggable **offline payment handler** (`com.genko.offline_payment`):
 the platform passes an opaque payment reference as the credential and the order
 is created in a pending-payment state for the merchant to reconcile. Pass your
 own `payment_handlers=` to advertise a real PSP (Stripe, Google Pay, ...).

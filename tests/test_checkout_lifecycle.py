@@ -6,7 +6,7 @@ import unittest
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-from ucp_merchant import (
+from genko import (
     Buyer,
     LineItem,
     MerchantAdapter,
@@ -108,7 +108,7 @@ class EngineLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(checkout.status, "ready_for_complete")
 
-        from ucp_merchant.models import Payment, PaymentInstrument
+        from genko.models import Payment, PaymentInstrument
 
         completed = merchant.engine.complete_checkout(
             checkout.id,

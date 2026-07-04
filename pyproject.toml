@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ucp-merchant"
+name = "genko-sdk"
 version = "0.1.0"
-description = "Drop-in Universal Commerce Protocol (UCP) merchant server for any Python/FastAPI ecommerce."
+description = "Genko SDK — drop-in Universal Commerce Protocol (UCP) merchant server for any Python/FastAPI ecommerce."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -21,4 +21,4 @@ examples = ["uvicorn>=0.23", "httpx>=0.24"]
 dev = ["uvicorn>=0.23", "httpx>=0.24"]
 
 [tool.setuptools.packages.find]
-include = ["ucp_merchant*"]
+include = ["genko*"]

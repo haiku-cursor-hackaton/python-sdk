@@ -63,3 +63,26 @@ class MerchantAdapter(ABC):
     def get_order(self, order_id: str) -> OrderConfirmation | None:  # noqa: ARG002
         """Optional: resolve a previously created order. Returns ``None`` by default."""
         return None
+
+    def on_payment_accredited(
+        self,
+        *,
+        order_id: str,
+        payment_reference: str,
+        amount_minor: int,
+        currency: str,
+        result: dict | None = None,
+    ) -> OrderConfirmation | None:
+        """Optional hook fired after the platform settles (accredits) a payment.
+
+        Called by the engine once ``create_order`` succeeded *and* the platform
+        confirmed settlement, so the store can reconcile its own records (e.g.
+        mark the order paid). Only invoked when a platform client is configured.
+
+        Return an updated :class:`OrderConfirmation` to have the completion
+        response reflect the post-settlement state (e.g. ``payment_status`` now
+        ``paid``); return ``None`` to keep the original confirmation. Default:
+        no-op. Exceptions raised here do not roll back the placed order; the
+        checkout still completes and the failure is surfaced as a warning.
+        """
+        return None

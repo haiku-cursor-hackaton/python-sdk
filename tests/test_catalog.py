@@ -5,7 +5,7 @@ import unittest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from ucp_merchant import (
+from genko import (
     Buyer,
     MerchantAdapter,
     OrderConfirmation,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from ucp_merchant import (
+from genko import (
     MerchantAdapter,
     OrderConfirmation,
     Payment,

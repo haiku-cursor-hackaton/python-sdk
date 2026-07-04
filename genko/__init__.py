@@ -1,4 +1,4 @@
-"""ucp-merchant: drop-in Universal Commerce Protocol server for Python stores."""
+"""Genko SDK: drop-in Universal Commerce Protocol server for Python stores."""
 
 from __future__ import annotations
 

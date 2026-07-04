@@ -1,11 +1,11 @@
-# Platform Integration Contract — `ucp-merchant` ↔ MCP Gateway
+# Platform Integration Contract — Genko SDK ↔ Genko MCP Gateway
 
 **Audience:** the teammate(s) building the multi-tenant **MCP Gateway** and the
 platform **infra** (Supabase, wallet, dashboard) described in the *"MCP Gateway
 para comercios UCP"* PRD.
 
 **Purpose:** this is the source-of-truth handoff. It tells you exactly what a
-merchant running the `ucp-merchant` SDK exposes, the final REST endpoints, the
+merchant running the Genko SDK exposes, the final REST endpoints, the
 MCP tool mapping, request/response shapes, the payment-instrument contract, and
 the honest list of what is / isn't enforced yet. You can start building the
 gateway against this without reading the SDK source.
@@ -20,10 +20,10 @@ gateway against this without reading the SDK source.
 ## 1. Where the gateway sits
 
 ```
-Client harness ──MCP──▶ MCP Gateway ──UCP REST──▶ ucp-merchant SDK ──▶ store backend (e.g. Lithe)
+Client harness ──MCP──▶ Genko MCP Gateway ──UCP REST──▶ Genko SDK ──▶ store backend (e.g. Lithe)
 ```
 
-- **Our scope (this repo):** the merchant tier — the `ucp-merchant` SDK and its
+- **Our scope (this repo):** the merchant tier — the Genko SDK and its
   Lithe integration. Each store exposes a **standard UCP REST surface** plus its
   own MCP endpoint.
 - **Your scope (PRD):** the gateway is the single public multi-tenant MCP server.
@@ -72,7 +72,7 @@ Exact shape emitted by the SDK:
       "dev.ucp.shopping.catalog.lookup": [ { "version": "2026-04-08", "spec": "...", "schema": "..." } ]
     },
     "payment_handlers": {
-      "com.ucp-merchant.offline_payment": [
+      "com.genko.offline_payment": [
         {
           "id": "offline",
           "version": "2026-04-08",
@@ -283,7 +283,7 @@ what merchants actually accept.
 
 **How it fits together:**
 - The merchant advertises a payment handler in its profile (Lithe/default:
-  handler group `com.ucp-merchant.offline_payment`, instrument **`id: "offline"`**,
+  handler group `com.genko.offline_payment`, instrument **`id: "offline"`**,
   instrument `type: "offline"`).
 - The PRD gateway runs its **own** simulated wallet (`dev.platform.simulated_balance`)
   entirely on the gateway side. The merchant neither sees nor needs the wallet.
@@ -473,7 +473,7 @@ and store its own idempotency key for its wallet bookkeeping.
 
 The PRD resolves merchants from Supabase (`merchants` / `merchant_domains` /
 `merchant_connections`). To populate that, the plan is an SDK helper
-(`python -m ucp_merchant.register`) that POSTs the merchant's public base URL to
+(`python -m genko.register`) that POSTs the merchant's public base URL to
 a gateway/infra **register endpoint** so the infra can then fetch
 `/.well-known/ucp` and cache the connection.
 
