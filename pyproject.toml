@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ucp-merchant"
+version = "0.1.0"
+description = "Drop-in Universal Commerce Protocol (UCP) merchant server for any Python/FastAPI ecommerce."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "haiku-cursor-hackaton" }]
+keywords = ["ucp", "commerce", "agentic", "ecommerce", "mcp", "fastapi"]
+dependencies = [
+    "fastapi>=0.100",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+examples = ["uvicorn>=0.23", "httpx>=0.24"]
+dev = ["uvicorn>=0.23", "httpx>=0.24"]
+
+[tool.setuptools.packages.find]
+include = ["ucp_merchant*"]
