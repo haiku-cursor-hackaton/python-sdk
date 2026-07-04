@@ -413,7 +413,7 @@ and the merchant's own credentials. Current merchant-side reality:
 | `UCP-Agent`             | **Accepted, not required, not validated.** Safe to always send.|
 | `Request-Id`            | Accepted, ignored (not echoed). Safe to send.                  |
 | `Idempotency-Key`       | **Not yet enforced.** The SDK does not de-dupe by key. See note.|
-| Merchant auth (API key) | The SDK ships no auth middleware on its **inbound** UCP routes; Lithe exposes them publicly (rate-limited). Separately, the SDK uses an **outbound** merchant API key (issued by the infra) to call the platform back for payment verify/accredit — see §7b. |
+| Merchant auth (API key) | **Optional inbound gate available.** When a store configures `UCPMerchant(api_keys=...)` (Lithe: `UCP_GATEWAY_API_KEY`), the REST + MCP operation routers require `Authorization: Bearer <vendor_key>` and return **401** otherwise; `/.well-known/ucp` discovery stays public. If unset, the surface is open (rate-limited). Separately, the SDK uses an **outbound** merchant API key to call the platform back for verify/accredit — see §7b. |
 | TLS / HTTPS             | Deployment concern; the SDK speaks plain HTTP behind whatever host serves it. |
 
 **Idempotency note (important for `complete`/`cancel`):** the SDK's checkout
@@ -425,9 +425,15 @@ already-canceled/completed session errors. So repeating `complete_checkout` will
 doesn't inspect the `Idempotency-Key` header. The gateway should still generate
 and store its own idempotency key for its wallet bookkeeping.
 
+**Vendor key gate (when enabled):** the gateway must send `Authorization: Bearer
+<vendor_key>` (the key Genko issues to that store on registration) on **every**
+REST and MCP call. Discovery is exempt. Multiple keys can be configured for
+rotation. Buyer identity (name/email/phone) still flows through the normal UCP
+buyer fields — the gateway resolves the user from their *user* key and forwards
+those fields; the vendor key only authorizes the store↔gateway channel.
+
 > Gaps we may close later if needed: header-level idempotency store, `UCP-Agent`
-> validation, per-merchant API-key auth middleware. Coordinate before relying on
-> any of these.
+> validation. Coordinate before relying on any of these.
 
 ---
 

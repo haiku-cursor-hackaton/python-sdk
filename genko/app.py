@@ -11,9 +11,12 @@ Wire an existing store into UCP in three lines::
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from collections.abc import Sequence
+
+from fastapi import APIRouter, Depends
 
 from .adapter import MerchantAdapter
+from .auth import build_api_key_dependency, normalize_api_keys
 from .engine import CheckoutEngine
 from .mcp import build_mcp_router
 from .models import (
@@ -50,6 +53,7 @@ class UCPMerchant:
         platform_url: str | None = None,
         platform_api_key: str | None = None,
         platform_client: PlatformClient | None = None,
+        api_keys: str | Sequence[str] | None = None,
     ) -> None:
         self.store_name = store_name
         self.base_url = base_url.rstrip("/")
@@ -58,6 +62,12 @@ class UCPMerchant:
         self.mcp_path = mcp_path
         self.enable_order_capability = enable_order_capability
         self._payment_handlers = payment_handlers or default_payment_handlers(self.base_url, version)
+
+        # Optional gateway API-key gate for the REST + MCP operation routers.
+        # When set, only callers presenting a matching Bearer token (e.g. the
+        # Genko gateway holding this vendor's key) can transact; discovery stays
+        # open. Empty => surface is open (rely on the host app for any limits).
+        self._api_keys = normalize_api_keys(api_keys)
 
         # Platform (infra) callback client, authenticated by a merchant API key.
         # Verifies + accredits the simulated payment against the platform wallet.
@@ -92,9 +102,19 @@ class UCPMerchant:
         )
 
     @property
+    def _auth_dependencies(self) -> list:
+        """Bearer-key gate applied to operation routers when keys are configured."""
+        if not self._api_keys:
+            return []
+        return [Depends(build_api_key_dependency(self._api_keys))]
+
+    @property
     def rest_router(self) -> APIRouter:
         return build_rest_router(
-            self.engine, prefix=self.rest_prefix, enable_order=self.enable_order_capability
+            self.engine,
+            prefix=self.rest_prefix,
+            enable_order=self.enable_order_capability,
+            dependencies=self._auth_dependencies,
         )
 
     @property
@@ -104,6 +124,7 @@ class UCPMerchant:
             path=self.mcp_path,
             server_name=self.store_name,
             enable_order=self.enable_order_capability,
+            dependencies=self._auth_dependencies,
         )
 
     @property

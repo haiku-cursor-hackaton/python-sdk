@@ -16,7 +16,10 @@ Maps the abstract UCP operations to RESTful routes:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from fastapi import APIRouter, Response
+from fastapi.params import Depends
 from pydantic import BaseModel, ConfigDict, Field
 
 from .engine import CheckoutEngine
@@ -84,9 +87,13 @@ def _status_code(result) -> int:
 
 
 def build_rest_router(
-    engine: CheckoutEngine, *, prefix: str, enable_order: bool = False
+    engine: CheckoutEngine,
+    *,
+    prefix: str,
+    enable_order: bool = False,
+    dependencies: Sequence[Depends] | None = None,
 ) -> APIRouter:
-    router = APIRouter(prefix=prefix, tags=["ucp"])
+    router = APIRouter(prefix=prefix, tags=["ucp"], dependencies=list(dependencies or []))
 
     # ------------------------------------------------------------------ #
     # Catalog capability (search + lookup)
