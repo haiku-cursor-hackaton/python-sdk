@@ -117,6 +117,7 @@ ucp = UCPMerchant(
     enable_order_capability=True,
     platform_url=os.getenv("UCP_PLATFORM_URL") or None,
     platform_api_key=os.getenv("UCP_PLATFORM_API_KEY") or None,
+    enable_mcp=True,  # local demo only; production Genko vendors are REST-only
     links=[
         Link(type="privacy_policy", url="https://demo-store.example.com/privacy"),
         Link(type="terms_of_service", url="https://demo-store.example.com/terms"),

@@ -1,19 +1,25 @@
 """The one-class entry point: :class:`UCPMerchant`.
 
-Wire an existing store into UCP in three lines::
+Wire an existing store into UCP in two lines (REST-only; the default for vendors)::
 
     ucp = UCPMerchant(store_name="My Store", base_url="https://mystore.com",
                       adapter=MyAdapter())
     app.include_router(ucp.rest_router)
-    app.include_router(ucp.mcp_router)
     app.include_router(ucp.well_known_router)
+
+Set ``enable_mcp=True`` and mount ``ucp.mcp_router`` only when the store itself
+should expose a local MCP transport (e.g. demos). Production Genko vendors are
+REST-only; the platform MCP gateway calls their REST endpoints.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from collections.abc import Sequence
+
+from fastapi import APIRouter, Depends
 
 from .adapter import MerchantAdapter
+from .auth import build_api_key_dependency, normalize_api_keys
 from .engine import CheckoutEngine
 from .mcp import build_mcp_router
 from .models import (
@@ -47,9 +53,11 @@ class UCPMerchant:
         payment_handlers: dict | None = None,
         session_ttl_hours: int = 6,
         enable_order_capability: bool = False,
+        enable_mcp: bool = False,
         platform_url: str | None = None,
         platform_api_key: str | None = None,
         platform_client: PlatformClient | None = None,
+        api_keys: str | Sequence[str] | None = None,
     ) -> None:
         self.store_name = store_name
         self.base_url = base_url.rstrip("/")
@@ -57,7 +65,17 @@ class UCPMerchant:
         self.rest_prefix = rest_prefix
         self.mcp_path = mcp_path
         self.enable_order_capability = enable_order_capability
+        self.enable_mcp = enable_mcp
         self._payment_handlers = payment_handlers or default_payment_handlers(self.base_url, version)
+
+        # Optional gateway API-key gate for the REST operation router (and MCP when
+        # enabled). When set, only callers presenting a matching Bearer token (e.g.
+        # the Genko gateway holding this vendor's key) can transact; discovery stays
+        # open. Empty => surface is open (rely on the host app for any limits).
+        # When set, only callers presenting a matching Bearer token (e.g. the
+        # Genko gateway holding this vendor's key) can transact; discovery stays
+        # open. Empty => surface is open (rely on the host app for any limits).
+        self._api_keys = normalize_api_keys(api_keys)
 
         # Platform (infra) callback client, authenticated by a merchant API key.
         # Verifies + accredits the simulated payment against the platform wallet.
@@ -92,18 +110,34 @@ class UCPMerchant:
         )
 
     @property
+    def _auth_dependencies(self) -> list:
+        """Bearer-key gate applied to operation routers when keys are configured."""
+        if not self._api_keys:
+            return []
+        return [Depends(build_api_key_dependency(self._api_keys))]
+
+    @property
     def rest_router(self) -> APIRouter:
         return build_rest_router(
-            self.engine, prefix=self.rest_prefix, enable_order=self.enable_order_capability
+            self.engine,
+            prefix=self.rest_prefix,
+            enable_order=self.enable_order_capability,
+            dependencies=self._auth_dependencies,
         )
 
     @property
     def mcp_router(self) -> APIRouter:
+        if not self.enable_mcp:
+            raise RuntimeError(
+                "MCP is disabled for this merchant (enable_mcp=False). "
+                "Mount rest_router only, or pass enable_mcp=True for local demos."
+            )
         return build_mcp_router(
             self.engine,
             path=self.mcp_path,
             server_name=self.store_name,
             enable_order=self.enable_order_capability,
+            dependencies=self._auth_dependencies,
         )
 
     @property
@@ -124,4 +158,5 @@ class UCPMerchant:
             version=self.version,
             payment_handlers=self._payment_handlers,
             enable_order=self.enable_order_capability,
+            enable_mcp=self.enable_mcp,
         )

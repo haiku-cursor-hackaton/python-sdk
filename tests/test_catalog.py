@@ -58,7 +58,7 @@ class CatalogAdapter(MerchantAdapter):
         return self.orders.get(order_id)
 
 
-def make_client(*, enable_order: bool = False) -> tuple[TestClient, CatalogAdapter]:
+def make_client(*, enable_order: bool = False, enable_mcp: bool = True) -> tuple[TestClient, CatalogAdapter]:
     adapter = CatalogAdapter()
     merchant = UCPMerchant(
         store_name="Catalog Store",
@@ -66,6 +66,7 @@ def make_client(*, enable_order: bool = False) -> tuple[TestClient, CatalogAdapt
         adapter=adapter,
         require_buyer_fields=("email",),
         enable_order_capability=enable_order,
+        enable_mcp=enable_mcp,
     )
     app = FastAPI()
     app.include_router(merchant.rest_router)

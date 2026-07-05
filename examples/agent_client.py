@@ -1,4 +1,7 @@
-"""A scripted agent that shops a UCP store over the MCP (JSON-RPC) transport.
+"""A scripted agent that shops a UCP store over shop-side MCP (JSON-RPC).
+
+For **production**, agents connect to the Genko platform (`POST /mcp`), not the
+store. This script is for local SDK demos only.
 
 Start the demo store first::
 
@@ -6,8 +9,7 @@ Start the demo store first::
 
 Then run::
 
-    python examples/agent_client.py            # against the demo store
-    python examples/agent_client.py http://127.0.0.1:8000  # against Lithe
+    python examples/agent_client.py
 """
 
 from __future__ import annotations

@@ -82,37 +82,40 @@ def build_business_profile(
     *,
     base_url: str,
     rest_prefix: str,
-    mcp_path: str,
+    mcp_path: str = "/ucp/mcp",
     version: str = UCP_VERSION,
     payment_handlers: dict | None = None,
     enable_order: bool = False,
+    enable_mcp: bool = False,
 ) -> dict:
     base_url = base_url.rstrip("/")
     rest_endpoint = f"{base_url}{rest_prefix}"
-    mcp_endpoint = f"{base_url}{mcp_path}"
     handlers = payment_handlers or default_payment_handlers(base_url, version)
+
+    services = [
+        {
+            "version": version,
+            "spec": "https://ucp.dev/specification/overview",
+            "transport": "rest",
+            "endpoint": rest_endpoint,
+            "schema": f"https://ucp.dev/{version}/services/shopping/rest.openapi.json",
+        },
+    ]
+    if enable_mcp:
+        services.append(
+            {
+                "version": version,
+                "spec": "https://ucp.dev/specification/overview",
+                "transport": "mcp",
+                "endpoint": f"{base_url}{mcp_path}",
+                "schema": f"https://ucp.dev/{version}/services/shopping/mcp.openrpc.json",
+            }
+        )
 
     return {
         "ucp": {
             "version": version,
-            "services": {
-                SHOPPING_SERVICE: [
-                    {
-                        "version": version,
-                        "spec": "https://ucp.dev/specification/overview",
-                        "transport": "rest",
-                        "endpoint": rest_endpoint,
-                        "schema": f"https://ucp.dev/{version}/services/shopping/rest.openapi.json",
-                    },
-                    {
-                        "version": version,
-                        "spec": "https://ucp.dev/specification/overview",
-                        "transport": "mcp",
-                        "endpoint": mcp_endpoint,
-                        "schema": f"https://ucp.dev/{version}/services/shopping/mcp.openrpc.json",
-                    },
-                ]
-            },
+            "services": {SHOPPING_SERVICE: services},
             "capabilities": build_capabilities(version, enable_order=enable_order),
             "payment_handlers": handlers,
         }

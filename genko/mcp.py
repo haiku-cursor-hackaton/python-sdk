@@ -9,8 +9,10 @@ plus a serialized copy in ``content[]`` for backwards compatibility.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Request
+from fastapi.params import Depends
 
 from .engine import CheckoutEngine
 from .models import Buyer, LineItemRequest, Payment
@@ -181,9 +183,14 @@ def _tool_output(payload: dict) -> dict:
 
 
 def build_mcp_router(
-    engine: CheckoutEngine, *, path: str, server_name: str, enable_order: bool = False
+    engine: CheckoutEngine,
+    *,
+    path: str,
+    server_name: str,
+    enable_order: bool = False,
+    dependencies: Sequence[Depends] | None = None,
 ) -> APIRouter:
-    router = APIRouter(tags=["ucp-mcp"])
+    router = APIRouter(tags=["ucp-mcp"], dependencies=list(dependencies or []))
 
     def _dispatch_tool(name: str, args: dict) -> dict:
         if name == "get_order" and enable_order:

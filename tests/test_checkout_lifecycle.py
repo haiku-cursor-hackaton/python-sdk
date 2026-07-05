@@ -41,13 +41,14 @@ class FakeAdapter(MerchantAdapter):
         )
 
 
-def make_merchant(require=("email",)) -> tuple[UCPMerchant, FakeAdapter]:
+def make_merchant(require=("email",), *, enable_mcp: bool = False) -> tuple[UCPMerchant, FakeAdapter]:
     adapter = FakeAdapter()
     merchant = UCPMerchant(
         store_name="Test Store",
         base_url="https://store.example",
         adapter=adapter,
         require_buyer_fields=require,
+        enable_mcp=enable_mcp,
     )
     return merchant, adapter
 
@@ -141,7 +142,7 @@ class EngineLifecycleTests(unittest.TestCase):
 
 class TransportTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.merchant, self.adapter = make_merchant(require=("email",))
+        self.merchant, self.adapter = make_merchant(require=("email",), enable_mcp=True)
         app = FastAPI()
         app.include_router(self.merchant.rest_router)
         app.include_router(self.merchant.mcp_router)
@@ -155,6 +156,15 @@ class TransportTests(unittest.TestCase):
         self.assertIn("dev.ucp.shopping.checkout", body["ucp"]["capabilities"])
         transports = {s["transport"] for s in body["ucp"]["services"]["dev.ucp.shopping"]}
         self.assertEqual(transports, {"rest", "mcp"})
+
+    def test_rest_only_profile_when_mcp_disabled(self):
+        merchant, _ = make_merchant(enable_mcp=False)
+        app = FastAPI()
+        app.include_router(merchant.well_known_router)
+        client = TestClient(app)
+        body = client.get("/.well-known/ucp").json()
+        transports = {s["transport"] for s in body["ucp"]["services"]["dev.ucp.shopping"]}
+        self.assertEqual(transports, {"rest"})
 
     def test_rest_happy_path(self):
         create = self.client.post(
