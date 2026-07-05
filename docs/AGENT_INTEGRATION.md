@@ -1,45 +1,10 @@
 # Wire Genko SDK into a Store
 
-Guide for AI agents helping a merchant add UCP to an existing Python/FastAPI
-ecommerce backend. Works with **any** coding assistant (Cursor, Codex, Claude
-Code, ChatGPT, etc.) — plain Markdown, no vendor-specific format.
+Integration guide for a Python/FastAPI merchant store. Agents shop via the
+[Genko platform](https://github.com/haiku-cursor-hackaton/backend) (`POST /mcp`);
+the store exposes **UCP REST only** (`enable_mcp=False`).
 
-**Production model:** stores expose **REST only** (`enable_mcp=False`, default).
-End-user agents connect to the [Genko platform backend](https://github.com/haiku-cursor-hackaton/backend)
-(`POST /mcp`), which proxies to each store's `/ucp/v1/*`.
-
-## Agent starter prompt
-
-Give this to Cursor, Codex, or any coding agent after opening **your store repo**.
-
-**Cursor** — install the skill first (from [python-sdk](https://github.com/haiku-cursor-hackaton/python-sdk)):
-
-```powershell
-git clone https://github.com/haiku-cursor-hackaton/python-sdk.git ../python-sdk
-New-Item -ItemType Directory -Force -Path .cursor/skills | Out-Null
-Copy-Item -Recurse -Force ../python-sdk/.cursor/skills/wire-genko-sdk .cursor/skills/
-```
-
-Then paste:
-
-```text
-Wire my ecommerce store to Genko (UCP) so AI agents can shop through the Genko platform.
-
-1. Read and follow the wire-genko-sdk skill (.cursor/skills/wire-genko-sdk/SKILL.md).
-2. Then execute this guide (AGENT_INTEGRATION.md) — every checklist step, in order.
-3. Work in MY store repo, not in python-sdk. pip install genko-sdk as a dependency.
-
-- MerchantAdapter → my existing catalog + orders (no duplicate order path).
-- UCPMerchant: REST + discovery only (enable_mcp=False). Match Lithe reference.
-- enable_order_capability=True; document env vars in .env.example.
-- Tests: /.well-known/ucp + checkout create → complete.
-
-My stack: [...]
-My store repo: [current workspace]
-python-sdk: [../python-sdk or pip from GitHub]
-```
-
-Full prompts (Cursor + generic) and personal-skill install: [README § AI agent integration](https://github.com/haiku-cursor-hackaton/python-sdk#ai-agent-integration-any-assistant).
+**Copy-paste prompt for your landing page:** [`CODING_AGENT_PROMPT.md`](CODING_AGENT_PROMPT.md)
 
 ## Before you start
 

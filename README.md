@@ -161,106 +161,10 @@ python -m unittest discover tests -v
 `create_checkout`, `get_checkout`, `update_checkout`, `complete_checkout`,
 `cancel_checkout` (+ `get_order` when the Order capability is enabled).
 
-## AI agent integration (any assistant)
+## AI agent integration
 
-Use the **vendor integration guide** below with any coding assistant — Cursor,
-Codex, Claude Code, ChatGPT, Copilot, Windsurf, or a custom agent. It is plain
-Markdown in this repo, not tied to a specific product.
-
-**Start here:** [`docs/AGENT_INTEGRATION.md`](docs/AGENT_INTEGRATION.md)
-
-The guide walks through:
-
-1. Install `genko-sdk` (local editable or Git pin for Docker)
-2. Implement `MerchantAdapter` (products + `create_order`, optional hooks)
-3. Mount `UCPMerchant` in FastAPI — **REST + discovery only** (`enable_mcp=False`)
-4. Configure `PUBLIC_BASE_URL`, `UCP_PLATFORM_*`, `UCP_GATEWAY_API_KEY`
-5. Register the store on the [Genko platform](https://github.com/haiku-cursor-hackaton/backend)
-6. Smoke-test via the platform (`scripts/smoke_test.py` in genko-backend) — not
-   by calling store REST as an agent
-7. Avoid common mistakes (SPA routing, float prices, duplicate order paths)
-
-### How to give the guide to your agent
-
-| Environment | What to do |
-| --- | --- |
-| **Cursor (recommended)** | Install the project skill (see below), then paste the **Cursor starter prompt** |
-| **Any agent with repo access** | Paste the **generic starter prompt**; agent reads `docs/AGENT_INTEGRATION.md` |
-| **Codex / CLI / IDE agents** | Clone python-sdk into context; use the generic starter prompt |
-| **Web chat (no repo clone)** | Paste the [raw integration guide](https://raw.githubusercontent.com/haiku-cursor-hackaton/python-sdk/main/docs/AGENT_INTEGRATION.md) plus your stack details |
-
-#### Install the Cursor skill (merchant repo)
-
-From your **ecommerce repo** root (not inside python-sdk):
-
-```powershell
-# Clone SDK once (sibling or vendor folder)
-git clone https://github.com/haiku-cursor-hackaton/python-sdk.git ../python-sdk
-
-# Project skill — shared with teammates via git
-New-Item -ItemType Directory -Force -Path .cursor/skills | Out-Null
-Copy-Item -Recurse -Force ../python-sdk/.cursor/skills/wire-genko-sdk .cursor/skills/
-```
-
-Or install for **all your projects** (personal skill):
-
-```powershell
-git clone https://github.com/haiku-cursor-hackaton/python-sdk.git $env:TEMP\python-sdk
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.cursor\skills" | Out-Null
-Copy-Item -Recurse -Force "$env:TEMP\python-sdk\.cursor\skills\wire-genko-sdk" "$env:USERPROFILE\.cursor\skills\"
-```
-
-Restart Cursor or open a new agent chat so it picks up the skill.
-
-### Copy-paste starter prompt
-
-**Cursor** (after installing `.cursor/skills/wire-genko-sdk`):
-
-```text
-Wire my ecommerce store to Genko (UCP) so AI agents can shop through the Genko platform.
-
-1. Read and follow the wire-genko-sdk skill (.cursor/skills/wire-genko-sdk/SKILL.md).
-2. Then execute docs/AGENT_INTEGRATION.md from https://github.com/haiku-cursor-hackaton/python-sdk — every checklist step, in order.
-3. Work in MY store repo (below), not in python-sdk. Clone or pip-install python-sdk only as a dependency.
-
-Integration requirements:
-- MerchantAdapter → my existing catalog + order pipeline (single order-creation path).
-- UCPMerchant: REST + discovery only (enable_mcp=False). Match Lithe reference pattern.
-- enable_order_capability=True; require_buyer_fields matching my store rules.
-- PUBLIC_BASE_URL + UCP_PLATFORM_* / UCP_GATEWAY_API_KEY documented in .env.example.
-- Tests: GET /.well-known/ucp (rest transport only) + checkout create → complete.
-
-My stack: [FastAPI / SQLAlchemy / Postgres / ...]
-My store repo: [path — current workspace]
-python-sdk: [../python-sdk or pip git+https://github.com/haiku-cursor-hackaton/python-sdk.git]
-Genko platform URL (if known): [https://genko-platform-production.up.railway.app]
-```
-
-**Generic** (Codex, Claude Code, any agent):
-
-```text
-Integrate Genko SDK into my FastAPI ecommerce store.
-
-Setup:
-1. Clone https://github.com/haiku-cursor-hackaton/python-sdk
-2. pip install -e /path/to/python-sdk (or add genko-sdk @ git+https://github.com/haiku-cursor-hackaton/python-sdk.git to requirements)
-3. Read docs/AGENT_INTEGRATION.md from that repo and follow every checklist step in order.
-
-Integration:
-- Implement MerchantAdapter wired to my existing order pipeline (no duplicate order logic).
-- Mount UCP REST + discovery only (enable_mcp=False). Match Lithe:
-  https://github.com/haiku-cursor-hackaton/Lithe-Hackathon/blob/main/backend/app/ucp_adapter.py
-- Set PUBLIC_BASE_URL; document UCP_PLATFORM_* and UCP_GATEWAY_API_KEY in .env.example.
-- enable_order_capability=True; add tests for /.well-known/ucp and one checkout flow.
-
-Agents connect via Genko platform POST /mcp — not by calling my store REST directly.
-
-My stack: [FastAPI / SQLAlchemy / Postgres / ...]
-My store repo: [path or URL]
-```
-
-Reference implementation: [Lithe `ucp_adapter.py`](https://github.com/haiku-cursor-hackaton/Lithe-Hackathon/blob/main/backend/app/ucp_adapter.py)
-and [`main.py` UCP block](https://github.com/haiku-cursor-hackaton/Lithe-Hackathon/blob/main/backend/app/main.py).
+- **Landing page prompt:** [`docs/CODING_AGENT_PROMPT.md`](docs/CODING_AGENT_PROMPT.md)
+- **Full guide:** [`docs/AGENT_INTEGRATION.md`](docs/AGENT_INTEGRATION.md)
 
 ## Full spec
 
