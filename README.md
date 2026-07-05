@@ -157,12 +157,54 @@ MCP tools: `search_products`, `lookup_products`, `get_product`,
 `create_checkout`, `get_checkout`, `update_checkout`, `complete_checkout`,
 `cancel_checkout` (+ `get_order` when the Order capability is enabled).
 
+## AI agent integration (any assistant)
+
+Use the **vendor integration guide** below with any coding assistant — Cursor,
+Codex, Claude Code, ChatGPT, Copilot, Windsurf, or a custom agent. It is plain
+Markdown in this repo, not tied to a specific product.
+
+**Start here:** [`docs/AGENT_INTEGRATION.md`](docs/AGENT_INTEGRATION.md)
+
+The guide walks through:
+
+1. Install `genko-sdk` (local editable or Git pin for Docker)
+2. Implement `MerchantAdapter` (products + `create_order`, optional hooks)
+3. Mount `UCPMerchant` in FastAPI — **REST + discovery only** (`enable_mcp=False`)
+4. Configure `PUBLIC_BASE_URL`, `UCP_PLATFORM_*`, `UCP_GATEWAY_API_KEY`
+5. Register the store on the [Genko platform](https://github.com/haiku-cursor-hackaton/backend)
+6. Smoke-test `/.well-known/ucp` and a full checkout
+7. Avoid common mistakes (SPA routing, float prices, duplicate order paths)
+
+### How to give the guide to your agent
+
+| Environment | What to do |
+| --- | --- |
+| **Any agent with repo access** | Point it at `docs/AGENT_INTEGRATION.md` and ask it to follow the checklist in order |
+| **Cursor** | Optional: the `.cursor/skills/wire-genko-sdk` skill loads the same guide when you ask to wire UCP / install the SDK |
+| **Codex / CLI / IDE agents** | Add the python-sdk repo to context; first instruction: read `docs/AGENT_INTEGRATION.md` |
+| **Web chat (no repo clone)** | Paste the [raw file from GitHub](https://raw.githubusercontent.com/haiku-cursor-hackaton/python-sdk/main/docs/AGENT_INTEGRATION.md) |
+
+### Copy-paste starter prompt
+
+```text
+Integrate Genko SDK into my FastAPI store.
+
+1. Read docs/AGENT_INTEGRATION.md from the python-sdk repo and follow every step.
+2. Implement MerchantAdapter wired to my existing order pipeline (no duplicate order logic).
+3. Mount UCP REST + discovery only (enable_mcp=False). Match the Lithe reference pattern.
+4. Set PUBLIC_BASE_URL and document any new env vars in .env.example.
+5. Add a minimal test that hits /.well-known/ucp and completes one checkout.
+
+My stack: [FastAPI / SQLAlchemy / Postgres / ...]
+My store repo: [path or URL]
+```
+
+Reference implementation: [Lithe `ucp_adapter.py`](https://github.com/haiku-cursor-hackaton/Lithe-Hackathon/blob/main/backend/app/ucp_adapter.py)
+and [`main.py` UCP block](https://github.com/haiku-cursor-hackaton/Lithe-Hackathon/blob/main/backend/app/main.py).
+
 ## Full spec
 
-- **[`.cursor/skills/wire-genko-sdk/SKILL.md`](.cursor/skills/wire-genko-sdk/SKILL.md)** — Cursor Agent Skill:
-  step-by-step instructions for AI agents wiring this SDK into a store (install,
-  adapter, FastAPI mount, env vars, platform registration, verification).
-- **[`docs/SDK_PRD.md`](docs/SDK_PRD.md)** — the complete product spec: every
+- **[`docs/SDK_PRD.md`](docs/SDK_PRD.md)** — complete product spec: every
   endpoint (REST + MCP) with request/response shapes, the data models, the
   checkout lifecycle/state machine, payments, config options, and acceptance
   criteria.
