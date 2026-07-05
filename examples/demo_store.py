@@ -11,6 +11,7 @@ Then discover it at http://127.0.0.1:8100/.well-known/ucp
 from __future__ import annotations
 
 import os
+from uuid import uuid4
 
 from fastapi import FastAPI
 
@@ -71,7 +72,7 @@ class DemoAdapter(MerchantAdapter):
         payment_reference: str | None = None,
     ) -> OrderConfirmation:
         self._counter += 1
-        order_id = f"DEMO-{self._counter:04d}"
+        order_id = f"DEMO-{self._counter:04d}-{uuid4().hex[:8].upper()}"
         confirmation = OrderConfirmation(
             id=order_id,
             label=order_id,
@@ -102,15 +103,18 @@ def _flag(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+_BASE_URL = os.getenv("UCP_DEMO_BASE_URL", "http://127.0.0.1:8100").rstrip("/")
+
+
 # Optional platform accreditation for local testing against ucp-platform-mock:
 # set UCP_PLATFORM_URL + UCP_PLATFORM_API_KEY to make the SDK verify + accredit.
 ucp = UCPMerchant(
     store_name="Demo Store",
-    base_url="http://127.0.0.1:8100",
+    base_url=_BASE_URL,
     adapter=DemoAdapter(),
     currency="USD",
     require_buyer_fields=("email",),
-    enable_order_capability=_flag("UCP_DEMO_ORDER_CAPABILITY") or bool(os.getenv("UCP_PLATFORM_URL")),
+    enable_order_capability=True,
     platform_url=os.getenv("UCP_PLATFORM_URL") or None,
     platform_api_key=os.getenv("UCP_PLATFORM_API_KEY") or None,
     links=[
