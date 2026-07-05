@@ -172,7 +172,8 @@ The guide walks through:
 3. Mount `UCPMerchant` in FastAPI — **REST + discovery only** (`enable_mcp=False`)
 4. Configure `PUBLIC_BASE_URL`, `UCP_PLATFORM_*`, `UCP_GATEWAY_API_KEY`
 5. Register the store on the [Genko platform](https://github.com/haiku-cursor-hackaton/backend)
-6. Smoke-test `/.well-known/ucp` and a full checkout
+6. Smoke-test via the platform (`scripts/smoke_test.py` in genko-backend) — not
+   by calling store REST as an agent
 7. Avoid common mistakes (SPA routing, float prices, duplicate order paths)
 
 ### How to give the guide to your agent

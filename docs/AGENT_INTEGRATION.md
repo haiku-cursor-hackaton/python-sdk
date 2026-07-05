@@ -234,25 +234,35 @@ End users connect via `POST /v1/connect/client` → use returned `mcp_url` +
 
 ## 6. Verify
 
-Run after wiring:
+Run after wiring. These checks are for **merchant operators** validating the store
+and platform integration — **not** the agent shopping path.
 
 ```bash
 # Discovery — should list transport: rest only (no mcp)
 curl -s https://your-store.example.com/.well-known/ucp | jq '.ucp.services'
-
-# Catalog search (with vendor key if gated)
-curl -s https://your-store.example.com/ucp/v1/catalog/search \
-  -H "Authorization: Bearer $UCP_GATEWAY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"shirt"}'
 
 # SDK unit tests (from python-sdk repo)
 pip install -e ".[dev]"
 python -m unittest discover tests -v
 ```
 
-Add store-specific tests (see Lithe `tests/test_ucp_flow.py`) that exercise
-create → update buyer → complete → order lookup against your adapter.
+**Agent shopping path (production):** end-user agents connect only to the Genko
+platform (`POST /mcp` with a user `gk_mcp_*` key). They must **not** call your
+store's `/ucp/v1/*` REST surface directly. That REST API is for the platform
+gateway only; when `UCP_GATEWAY_API_KEY` is set, unauthenticated or
+non-platform callers receive **401**.
+
+To validate the full agent flow after platform registration:
+
+```bash
+# From the genko-backend repo, after scripts/seed_lithe.py (or seed_demo.py):
+python scripts/smoke_test.py --credentials ../temp/lithe_credentials.json
+```
+
+Add store-specific **unit/integration** tests (see Lithe `tests/test_ucp_flow.py`)
+that exercise create → update buyer → complete → order lookup against your adapter.
+Those tests run inside the merchant repo and simulate what the **platform** does
+over REST — they are not an agent integration pattern.
 
 ---
 
@@ -262,6 +272,8 @@ create → update buyer → complete → order lookup against your adapter.
 | --- | --- |
 | Mounting UCP routers after SPA `/{path}` catch-all | Mount UCP routers **first** |
 | Mounting `mcp_router` in production | REST only; platform owns MCP |
+| Agents calling store `/ucp/v1/*` directly | Agents use platform `POST /mcp` only |
+| Giving agents `UCP_GATEWAY_API_KEY` | Vendor key is platform→store only; never ship to agents |
 | Float prices | Use integer minor units |
 | Separate UCP order path | Reuse existing order creation |
 | Missing `PUBLIC_BASE_URL` in prod | Broken discovery URLs and permalinks |

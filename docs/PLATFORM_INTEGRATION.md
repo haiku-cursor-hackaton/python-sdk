@@ -50,6 +50,10 @@ Supabase
   REST calls**. It owns the simulated wallet/settlement and issues SDK keys
   (`gk_sdk_*`) for merchant→platform payment callbacks.
 
+**No agent bypass.** User agents must not call merchant `/ucp/v1/*` REST
+directly, even if they possess a vendor key. Shopping always flows through
+`POST /mcp` on the platform.
+
 **Key alignment point:** the gateway drives merchants over their **REST** surface
 (the table in §4). Per-merchant MCP (`/ucp/mcp`) is **opt-in** in the SDK for
 local demos only — production Genko vendors do not mount it.
@@ -476,6 +480,11 @@ rotation. Buyer identity (name/email/phone) still flows through the normal UCP
 buyer fields — the gateway resolves the user from their *user* key and forwards
 those fields; the vendor key only authorizes the store↔gateway channel.
 
+**Agents must not use the vendor key.** End-user agents authenticate with
+`gk_mcp_*` keys against `POST /mcp` on the platform only. Direct calls to a
+merchant's `/ucp/v1/*` with a vendor key are a platform implementation detail,
+not an supported agent integration path.
+
 > Gaps we may close later if needed: header-level idempotency store, `UCP-Agent`
 > validation. Coordinate before relying on any of these.
 
@@ -499,7 +508,8 @@ those fields; the vendor key only authorizes the store↔gateway channel.
 ## 11. Lithe specifics (the reference merchant)
 
 - Base URL: `settings.public_base_url`; REST endpoint therefore `{base}/ucp/v1`,
-  MCP `{base}/ucp/mcp`, discovery `{base}/.well-known/ucp`.
+  discovery `{base}/.well-known/ucp`. Production Lithe does **not** mount
+  shop-side MCP (`enable_mcp=False`).
 - Currency: `USD` (minor units / cents).
 - Required buyer fields: **`email` and `phone_number`** → a checkout stays
   `incomplete` with `field_required` messages until both are present. The gateway
