@@ -159,6 +159,9 @@ MCP tools: `search_products`, `lookup_products`, `get_product`,
 
 ## Full spec
 
+- **[`.cursor/skills/wire-genko-sdk/SKILL.md`](.cursor/skills/wire-genko-sdk/SKILL.md)** — Cursor Agent Skill:
+  step-by-step instructions for AI agents wiring this SDK into a store (install,
+  adapter, FastAPI mount, env vars, platform registration, verification).
 - **[`docs/SDK_PRD.md`](docs/SDK_PRD.md)** — the complete product spec: every
   endpoint (REST + MCP) with request/response shapes, the data models, the
   checkout lifecycle/state machine, payments, config options, and acceptance
