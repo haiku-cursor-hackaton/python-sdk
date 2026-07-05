@@ -8,6 +8,39 @@ Code, ChatGPT, etc.) — plain Markdown, no vendor-specific format.
 End-user agents connect to the [Genko platform backend](https://github.com/haiku-cursor-hackaton/backend)
 (`POST /mcp`), which proxies to each store's `/ucp/v1/*`.
 
+## Agent starter prompt
+
+Give this to Cursor, Codex, or any coding agent after opening **your store repo**.
+
+**Cursor** — install the skill first (from [python-sdk](https://github.com/haiku-cursor-hackaton/python-sdk)):
+
+```powershell
+git clone https://github.com/haiku-cursor-hackaton/python-sdk.git ../python-sdk
+New-Item -ItemType Directory -Force -Path .cursor/skills | Out-Null
+Copy-Item -Recurse -Force ../python-sdk/.cursor/skills/wire-genko-sdk .cursor/skills/
+```
+
+Then paste:
+
+```text
+Wire my ecommerce store to Genko (UCP) so AI agents can shop through the Genko platform.
+
+1. Read and follow the wire-genko-sdk skill (.cursor/skills/wire-genko-sdk/SKILL.md).
+2. Then execute this guide (AGENT_INTEGRATION.md) — every checklist step, in order.
+3. Work in MY store repo, not in python-sdk. pip install genko-sdk as a dependency.
+
+- MerchantAdapter → my existing catalog + orders (no duplicate order path).
+- UCPMerchant: REST + discovery only (enable_mcp=False). Match Lithe reference.
+- enable_order_capability=True; document env vars in .env.example.
+- Tests: /.well-known/ucp + checkout create → complete.
+
+My stack: [...]
+My store repo: [current workspace]
+python-sdk: [../python-sdk or pip from GitHub]
+```
+
+Full prompts (Cursor + generic) and personal-skill install: [README § AI agent integration](https://github.com/haiku-cursor-hackaton/python-sdk#ai-agent-integration-any-assistant).
+
 ## Before you start
 
 Read these only if you need detail beyond this guide:
@@ -29,6 +62,7 @@ Copy and track progress:
 - [ ] 5. Enable order capability if gateway needs get_order
 - [ ] 6. Register store on Genko platform (production)
 - [ ] 7. Verify /.well-known/ucp and a REST checkout smoke test
+- [ ] 8. (Agents) Connect to platform POST /mcp — use discover_commerces for multi-store
 ```
 
 ---
@@ -156,7 +190,7 @@ if settings.ucp_enabled:
         adapter=MyStoreAdapter(settings.public_base_url),
         currency="USD",
         require_buyer_fields=("email", "phone_number"),  # match your store rules
-        enable_order_capability=True,   # recommended for Genko gateway (9 tools)
+        enable_order_capability=True,   # enables platform get_order (9 UCP REST ops per merchant)
         enable_mcp=False,             # production default — REST only
         platform_url=settings.ucp_platform_url,
         platform_api_key=settings.ucp_platform_api_key,
@@ -174,7 +208,7 @@ if settings.ucp_enabled:
 | --- | --- |
 | `base_url` | Public HTTPS origin (`PUBLIC_BASE_URL`) |
 | `require_buyer_fields` | Fields required before `ready_for_complete` |
-| `enable_order_capability` | `True` for full gateway tool parity |
+| `enable_order_capability` | `True` — enables platform `get_order` tool (9 UCP REST ops) |
 | `enable_mcp` | `False` (production); `True` only for local demos |
 | `platform_url` / `platform_api_key` | Genko platform — enables paid flow + accreditation |
 | `api_keys` | Vendor inbound key(s) — Genko gateway sends `Authorization: Bearer` |
@@ -227,8 +261,38 @@ Response includes `sdk_api_key` → set as `UCP_PLATFORM_API_KEY`.
 End users connect via `POST /v1/connect/client` → use returned `mcp_url` +
 `mcp_api_key` with Codex or `scripts/genko_mcp_stdio.py`.
 
-> **Platform gap:** ensure the platform sends `Authorization: Bearer
-> <UCP_GATEWAY_API_KEY>` on outbound REST. Without it, a gated store returns 401.
+### Agent shopping (production)
+
+User agents connect **only** to the Genko platform MCP gateway (`POST /mcp` with
+`gk_mcp_*`). The platform exposes **12 tools**:
+
+| Tool | Requires `merchant_url` |
+| --- | --- |
+| `get_user_profile` | No — profile + wallet |
+| `discover_commerces` | No — list/search registered stores |
+| `get_purchase_history` | No (optional filter by `merchant_url`) |
+| `search_catalog`, `lookup_catalog`, `get_product` | Yes |
+| `create_checkout`, `get_checkout`, `update_checkout`, `complete_checkout`, `cancel_checkout` | Yes (optional on get/update/complete/cancel when checkout id is known) |
+| `get_order` | Yes |
+
+**Multi-merchant flow:** `discover_commerces` → pick `merchant_url` from results →
+catalog → checkout. One checkout = one merchant.
+
+**Codex HTTP MCP** (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.genko]
+url = "https://genko-platform-production.up.railway.app/mcp"
+bearer_token_env_var = "GENKO_MCP_API_KEY"
+enabled = true
+```
+
+Set `GENKO_MCP_API_KEY` in Codex secrets. After platform deploys that add tools,
+disable and re-enable the MCP server to refresh `tools/list`.
+
+> **Platform note:** the platform sends `Authorization: Bearer
+> <UCP_GATEWAY_API_KEY>` on outbound REST when the vendor key was stored at
+> registration. Without it, a gated store returns 401.
 
 ---
 
@@ -255,9 +319,15 @@ non-platform callers receive **401**.
 To validate the full agent flow after platform registration:
 
 ```bash
-# From the genko-backend repo, after scripts/seed_lithe.py (or seed_demo.py):
+# From genko-backend — multi-merchant seed (recommended):
+python scripts/seed_multi_merchant.py --backend-url https://genko-platform-production.up.railway.app
+python scripts/smoke_test.py --credentials ../temp/multi_merchant_credentials.json
+
+# Lithe-only:
 python scripts/smoke_test.py --credentials ../temp/lithe_credentials.json
 ```
+
+Expect **12** tools on `tools/list`.
 
 Add store-specific **unit/integration** tests (see Lithe `tests/test_ucp_flow.py`)
 that exercise create → update buyer → complete → order lookup against your adapter.
@@ -270,6 +340,7 @@ over REST — they are not an agent integration pattern.
 
 | Mistake | Fix |
 | --- | --- |
+| Hardcoding one `merchant_url` in a multi-store agent | Call `discover_commerces` first |
 | Mounting UCP routers after SPA `/{path}` catch-all | Mount UCP routers **first** |
 | Mounting `mcp_router` in production | REST only; platform owns MCP |
 | Agents calling store `/ucp/v1/*` directly | Agents use platform `POST /mcp` only |

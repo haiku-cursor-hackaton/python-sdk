@@ -26,7 +26,7 @@ yet. You can start building the gateway against this without reading the SDK sou
 Agent (Codex, etc.)
     │  MCP + gk_mcp_* user key
     ▼
-Genko platform backend  —  POST /mcp  (9 shopping tools)
+Genko platform backend  —  POST /mcp  (12 tools: 3 platform + 9 UCP proxy)
     │  UCP REST + optional Authorization: Bearer gk_vendor_*
     ▼
 Merchant store (Genko SDK)  —  POST/GET /ucp/v1/*  (REST only in production)
@@ -156,16 +156,48 @@ domain mapping, and returns `sdk_api_key` (`gk_sdk_*`). Set on the store:
 | `UCP_GATEWAY_API_KEY` | Vendor inbound key the platform sends as `Authorization: Bearer` |
 
 End users connect via `POST /v1/connect/client` → `mcp_url` + `mcp_api_key`
-(`gk_mcp_*`) for Codex or `scripts/genko_mcp_stdio.py`.
+(`gk_mcp_*`) for Codex (HTTP MCP) or `scripts/genko_mcp_stdio.py` (stdio bridge).
 
-> **Known gap:** the platform's `UcpRestClient` does not yet attach the vendor
-> inbound key on outbound REST calls. When a store sets `UCP_GATEWAY_API_KEY`, the
-> platform must store that key at registration and send
-> `Authorization: Bearer <vendor_key>` on every merchant REST request.
+**Codex (recommended):** configure HTTP MCP in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.genko]
+url = "https://genko-platform-production.up.railway.app/mcp"
+bearer_token_env_var = "GENKO_MCP_API_KEY"
+enabled = true
+```
+
+Set `GENKO_MCP_API_KEY` in Codex secrets. After a deploy that adds tools, disable
+and re-enable the MCP server so Codex refreshes `tools/list`.
+
+**Multi-merchant:** agents call `discover_commerces` to list registered stores,
+then pass the chosen `merchant_url` into catalog/checkout tools. One checkout =
+one merchant; multiple line items within the same store are OK.
+
+The platform stores the vendor inbound key at registration (`ucp_inbound_api_key`
+on `POST /v1/merchants/register`) and sends `Authorization: Bearer <vendor_key>`
+on every outbound merchant REST request via `UcpRestClient`.
 
 ---
 
-## 4. Final API surface (REST) and MCP tool mapping
+## 4. MCP tools and REST mapping
+
+The platform exposes **12** public MCP tools. Three are **platform-native**
+(Supabase — no merchant REST). Nine **proxy** a registered merchant's UCP REST
+surface (require `merchant_url` on catalog/checkout/order tools).
+
+### Platform-native tools
+
+| MCP tool | Data source | Notes |
+| --- | --- | --- |
+| `get_user_profile` | Client profile + wallet | No args |
+| `discover_commerces` | `businesses` table (active) | Optional `query`, `filters.categories`, `pagination` |
+| `get_purchase_history` | Platform `orders` for signed-in client | Optional `filters.merchant_url`, `status`, date range |
+
+`discover_commerces` returns `{ commerces: [{ business_id, name, category, description, merchant_url, status }], pagination }`.
+Use `merchant_url` from a commerce row as the `merchant_url` argument on catalog/checkout tools.
+
+### UCP proxy tools (merchant REST)
 
 All REST paths below are **relative to the profile's REST `endpoint`**
 (e.g. `https://store.example.com/ucp/v1`). This matches the PRD §5 table 1:1.
@@ -429,7 +461,7 @@ so a retried complete accredits at most once.
 
 ---
 
-## 8. Order capability status (action needed for full 9-tool parity)
+## 8. Order capability status
 
 - The SDK fully implements `get_order` / `GET /orders/{id}`. It returns
   `{ "ucp": {status,...}, "order": {...} }`, or HTTP 200 + `ucp.status:"error"`
@@ -437,11 +469,10 @@ so a retried complete accredits at most once.
 - **It is opt-in.** A merchant enables it with `enable_order_capability=True`
   (SDK) which both advertises `dev.ucp.shopping.order` in the profile and mounts
   the route.
-- **Lithe now enables it** (`enable_order_capability=True` in
-  `backend/app/main.py`). Lithe advertises the full **9** operations, and
-  `get_order` resolves a real order via `get_order_by_number`. The order snapshot
-  (returned both here and in the completed checkout's `order` block) is a **rich
-  success record**:
+- **Lithe and the Genko example stores enable it**, so they expose the full **9**
+  UCP REST operations and the platform's `get_order` tool works for them. The
+  order snapshot (returned both here and in the completed checkout's `order`
+  block) is a **rich success record**:
   `{ id, permalink_url, label, status, payment_status, currency, created_at, totals[], line_items[] }`.
   Unknown ids return HTTP 200 + `ucp.status:"error"` with a `not_found` message.
 
@@ -505,7 +536,23 @@ not an supported agent integration path.
 
 ---
 
-## 11. Lithe specifics (the reference merchant)
+## 11. Production merchants (hackathon)
+
+| Store | URL | Category |
+| --- | --- | --- |
+| Lithe | `https://lithe-production.up.railway.app` | apparel |
+| Genko Gear | `https://genko-gear-production.up.railway.app` | home-goods |
+| Genko Basics | `https://genko-basics-production.up.railway.app` | apparel |
+| Genko Pantry | `https://genko-pantry-production.up.railway.app` | food |
+
+Platform: `https://genko-platform-production.up.railway.app`.
+
+Seed all four + one MCP key: `python scripts/seed_multi_merchant.py` in
+genko-backend (writes `temp/multi_merchant_credentials.json`).
+
+---
+
+## 12. Lithe specifics (the reference merchant)
 
 - Base URL: `settings.public_base_url`; REST endpoint therefore `{base}/ucp/v1`,
   discovery `{base}/.well-known/ucp`. Production Lithe does **not** mount
@@ -529,7 +576,7 @@ not an supported agent integration path.
 
 ---
 
-## 12. Merchant self-registration (proposed — not built yet)
+## 13. Merchant self-registration (proposed — not built yet)
 
 The PRD resolves merchants from Supabase (`merchants` / `merchant_domains` /
 `merchant_connections`). To populate that, the plan is an SDK helper
@@ -551,12 +598,14 @@ Confirm the shape and we'll ship the SDK-side helper to match.
 
 ---
 
-## 13. Quick checklist for the gateway builder
+## 14. Quick checklist for the gateway builder
 
 - [ ] Resolve `merchant_url` → registered `ucp_base_url` (never hit arbitrary hosts).
 - [ ] `GET {base}/.well-known/ucp`, cache `capabilities` + `payment_handlers`.
-- [ ] Gate each of the 9 tools on the advertised capability (esp. `get_order`).
+- [ ] Expose `get_user_profile`, `discover_commerces`, `get_purchase_history` (platform data).
+- [ ] Gate each of the 9 UCP proxy tools on the advertised capability (esp. `get_order`).
 - [ ] Call the REST paths in §4, relative to the profile REST `endpoint`.
+- [ ] Send vendor inbound key on outbound REST when the store requires it.
 - [ ] Pass UCP envelopes/`messages` through **unchanged**; don't convert amounts.
 - [ ] At `complete`, inject the offline instrument from §7 with your
       `authorization_id` in `credential.reference`.
@@ -568,5 +617,5 @@ Confirm the shape and we'll ship the SDK-side helper to match.
       `accredit` call is the merchant confirming placement so you credit its balance.
 - [ ] Send `UCP-Agent` / `Request-Id` / `Idempotency-Key` (merchant tolerates them);
       keep your own idempotency + wallet bookkeeping gateway-side.
-- [ ] `get_order` is live on Lithe (9 tools); still gate it per-merchant on the
+- [ ] `get_order` is live on Lithe and example stores; still gate it per-merchant on the
       profile advertising `dev.ucp.shopping.order`.

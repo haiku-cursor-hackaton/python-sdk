@@ -386,6 +386,18 @@ Tools (names map to UCP operations):
 > exposing the PRD's public tool names (`search_catalog`, …) should drive
 > merchants over **REST**, so these internal names don't leak.
 
+### Platform gateway MCP (production agents)
+
+End-user agents connect to the **Genko platform backend** (`POST /mcp`), not to
+merchant `/ucp/mcp`. The platform exposes **12** public tools — see
+[`PLATFORM_INTEGRATION.md`](PLATFORM_INTEGRATION.md) §4:
+
+- Platform-native: `get_user_profile`, `discover_commerces`, `get_purchase_history`
+- UCP proxy (require `merchant_url`): `search_catalog`, `lookup_catalog`,
+  `get_product`, checkout tools, `get_order`
+
+Merchants implement only the REST surface in §7; they do not mount MCP in production.
+
 ---
 
 ## 11. Payments
@@ -478,8 +490,8 @@ fulfillment/delivery events in the Order snapshot, self-registration helper
 - Platform accreditation is configured from env `UCP_PLATFORM_URL` +
   `UCP_PLATFORM_API_KEY`; when unset, Lithe completes checkouts as a pure offline
   handler (still records the payment reference).
-- Surfaces all **9** operations over REST + MCP + discovery. UCP orders land in the
-  same admin/tracking pipeline as storefront orders.
+- Surfaces all **9** UCP REST operations (+ optional shop-side MCP in demos only).
+  UCP orders land in the same admin/tracking pipeline as storefront orders.
 - Tests: `backend/tests/test_ucp_flow.py`.
 
 ---
